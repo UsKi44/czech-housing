@@ -1,0 +1,31 @@
+{
+  "name": "czech-housing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n web,scraper -c blue,green \"node --disable-warning=ExperimentalWarning node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 3000\" \"tsx watch --disable-warning=ExperimentalWarning src/scraper/worker.ts\"",
+    "build": "next build",
+    "start": "concurrently -k -n web,scraper -c blue,green \"node --disable-warning=ExperimentalWarning node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000\" \"tsx --disable-warning=ExperimentalWarning src/scraper/worker.ts\"",
+    "scrape:once": "tsx --disable-warning=ExperimentalWarning src/scraper/worker.ts --once",
+    "telegram:setup": "tsx --disable-warning=ExperimentalWarning scripts/telegram-setup.ts",
+    "compact-photos": "tsx --disable-warning=ExperimentalWarning scripts/compact-photos.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "concurrently": "^10.0.7",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "~5.9"
+  }
+}

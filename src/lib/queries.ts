@@ -1,0 +1,78 @@
+import { getDb, getKv } from "./db";
+import { buildWhere, orderBy, type Filters } from "./filters";
+import type { ListingRow } from "./types";
+
+export const PAGE_SIZE = 24;
+
+export type ListingCardRow = ListingRow & { cover: string | null; cover_local: number; photo_count: number; prev_price: number | null };
+
+/** URL to show a photo: the local copy when downloaded, otherwise the source site's image. */
+export function photoSrc(p: { local_path: string | null; url: string }): string {
+  return p.local_path ? `/photos/${p.local_path}` : p.url;
+}
+
+export function searchListings(f: Filters): { rows: ListingCardRow[]; total: number } {
+  const db = getDb();
+  const { where, params } = buildWhere(f);
+  const total = (db.prepare(`SELECT COUNT(*) AS n FROM listings l WHERE ${where}`).get(...params) as { n: number }).n;
+  const rows = db
+    .prepare(
+      `SELECT l.id, l.source, l.source_id, l.url, l.title, l.price, l.charges, l.deposit, l.area, l.layout, l.floor,
+              l.district, l.neighbourhood, l.street, l.address, l.furnished, l.energy_rating, l.balcony, l.loggia, l.terrace,
+              l.lift, l.parking, l.garage, l.pets, l.available_from, l.first_seen, l.last_seen, l.removed_at,
+              (SELECT COALESCE('/photos/' || p.local_path, p.thumb_url, p.url) FROM photos p WHERE p.listing_id = l.id ORDER BY p.idx LIMIT 1) AS cover,
+              (SELECT COUNT(*) FROM photos p WHERE p.listing_id = l.id) AS photo_count,
+              (SELECT h.price FROM price_history h WHERE h.listing_id = l.id ORDER BY h.seen_at DESC LIMIT 1 OFFSET 1) AS prev_price
+       FROM listings l WHERE ${where} ORDER BY ${orderBy(f.sort, f.withCharges)} LIMIT ? OFFSET ?`,
+    )
+    .all(...params, PAGE_SIZE, (f.page - 1) * PAGE_SIZE) as unknown as ListingCardRow[];
+  return { rows, total };
+}
+
+/** Districts ("Praha N") and neighbourhoods with active listings, for the filter dropdown. */
+export function districtOptions(): { districts: { name: string; n: number }[]; neighbourhoods: { name: string; n: number }[] } {
+  const db = getDb();
+  const districts = db
+    .prepare("SELECT district AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND district IS NOT NULL GROUP BY district")
+    .all() as { name: string; n: number }[];
+  districts.sort((a, b) => (parseInt(a.name.replace(/\D/g, "")) || 99) - (parseInt(b.name.replace(/\D/g, "")) || 99));
+  const neighbourhoods = db
+    .prepare("SELECT neighbourhood AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND neighbourhood IS NOT NULL GROUP BY neighbourhood ORDER BY neighbourhood")
+    .all() as { name: string; n: number }[];
+  return { districts, neighbourhoods };
+}
+
+export interface SyncStatus {
+  lastCycleAt: string | null;
+  active: { source: string; n: number }[];
+  newToday: number;
+  photosStored: number;
+  photoBytes: number;
+  photosTotal: number;
+  lastErrors: { source: string; error: string; at: string }[];
+}
+
+export function syncStatus(): SyncStatus {
+  const db = getDb();
+  const active = db.prepare("SELECT source, COUNT(*) AS n FROM listings WHERE removed_at IS NULL GROUP BY source").all() as { source: string; n: number }[];
+  const since = new Date(Date.now() - 86400_000).toISOString();
+  const newToday = (db.prepare("SELECT COUNT(*) AS n FROM listings WHERE first_seen >= ?").get(since) as { n: number }).n;
+  const ph = db
+    .prepare("SELECT COUNT(local_path) AS stored, COALESCE(SUM(bytes), 0) AS bytes, COUNT(*) AS total FROM photos")
+    .get() as { stored: number; bytes: number; total: number };
+  const lastErrors = db
+    .prepare(
+      `SELECT r.source, r.error, r.finished_at AS at FROM runs r
+       WHERE r.id = (SELECT MAX(id) FROM runs r2 WHERE r2.source = r.source) AND r.error IS NOT NULL`,
+    )
+    .all() as { source: string; error: string; at: string }[];
+  return {
+    lastCycleAt: getKv("last_cycle_at") ?? null,
+    active,
+    newToday,
+    photosStored: ph.stored,
+    photoBytes: ph.bytes,
+    photosTotal: ph.total,
+    lastErrors,
+  };
+}
