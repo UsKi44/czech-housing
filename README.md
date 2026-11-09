@@ -41,6 +41,10 @@ Only while the app is running (window open, computer awake):
 
 When the app is closed nothing updates; the next start catches up automatically. To have it update around the clock, leave it running on a computer that stays on.
 
+## Translating listings
+
+Every listing page has a **🌐 Translate to English** button: it translates the description, title and all Czech parameters in place (click again for the original). Tick **Always translate listings** to have every listing open in English. Translations come from Google Translate (no account needed) and are cached in the database, so each text is translated only once. Only public listing text is sent, never contact details.
+
 ## Telegram alerts (optional, ~2 minutes)
 
 1. In Telegram, open **@BotFather**, send `/newbot` and follow the steps. It gives you a token.
