@@ -9,14 +9,14 @@ const MAX_PER_RUN = 15;
 
 /**
  * Check listings that have not been checked against the saved alerts yet and send Telegram messages for matches.
- * Sreality listings wait until their detail is fetched, so feature filters (furnished, lift, …) work.
+ * Listings wait until their details are fetched and duplicate detection has run, so feature filters work
+ * and a flat posted on several sites alerts only once.
  */
 export async function processAlerts(): Promise<number> {
   const db = getDb();
   const pending = db
     .prepare(
-      `SELECT id FROM listings WHERE alert_checked = 0 AND removed_at IS NULL
-       AND (source = 'bezrealitky' OR detail_fetched_at IS NOT NULL OR detail_failures >= 3)
+      `SELECT id FROM listings WHERE alert_checked = 0 AND removed_at IS NULL AND grouped = 1
        ORDER BY first_seen`,
     )
     .all() as { id: string }[];
@@ -39,7 +39,9 @@ export async function processAlerts(): Promise<number> {
     const rows = db
       .prepare(
         `SELECT l.* FROM listings l WHERE ${where} AND l.id IN (${ids.map(() => "?").join(",")})
-         AND NOT EXISTS (SELECT 1 FROM sent_alerts s WHERE s.alert_id = ? AND s.listing_id = l.id)`,
+         AND NOT EXISTS (SELECT 1 FROM sent_alerts s WHERE s.alert_id = ? AND s.listing_id = l.id)
+         -- the same flat already appeared earlier on another site: no second alert
+         AND NOT EXISTS (SELECT 1 FROM listings o WHERE o.group_id = l.group_id AND o.id != l.id AND o.first_seen < l.first_seen)`,
       )
       .all(...params, ...ids, alert.id) as unknown as ListingRow[];
     for (const listing of rows) matches.push({ alert, listing });

@@ -1,8 +1,11 @@
-export type Source = "sreality" | "bezrealitky";
+export type Source = "sreality" | "bezrealitky" | "idnes" | "ulovdomov";
 
+/** Order matters: when the same flat is on several sites, the first source here is shown as the main card. */
 export const SOURCES: { id: Source; label: string; home: string }[] = [
   { id: "sreality", label: "Sreality", home: "https://www.sreality.cz" },
   { id: "bezrealitky", label: "Bezrealitky", home: "https://www.bezrealitky.cz" },
+  { id: "idnes", label: "iDNES Reality", home: "https://reality.idnes.cz" },
+  { id: "ulovdomov", label: "UlovDomov", home: "https://www.ulovdomov.cz" },
 ];
 
 export const LAYOUTS = ["1+kk", "1+1", "2+kk", "2+1", "3+kk", "3+1", "4+kk", "4+1", "5+kk", "5+1", "6+", "atypical", "room"] as const;

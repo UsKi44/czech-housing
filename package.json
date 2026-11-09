@@ -10,11 +10,13 @@
     "scrape:once": "tsx --disable-warning=ExperimentalWarning src/scraper/worker.ts --once",
     "telegram:setup": "tsx --disable-warning=ExperimentalWarning scripts/telegram-setup.ts",
     "compact-photos": "tsx --disable-warning=ExperimentalWarning scripts/compact-photos.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "regroup": "tsx --disable-warning=ExperimentalWarning scripts/regroup.ts"
   },
   "dependencies": {
     "concurrently": "^10.0.7",
     "next": "^16.4.6",
+    "node-html-parser": "^9.0.7",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sharp": "^0.35.5",

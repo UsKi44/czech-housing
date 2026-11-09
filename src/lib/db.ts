@@ -152,6 +152,13 @@ function migrate(db: DatabaseSync): void {
     for (const r of rows) upd.run(searchText(r.title, r.address, r.neighbourhood, r.district, r.description), r.id as string);
     db.exec("COMMIT");
   }
+  if (!cols.has("group_id")) {
+    // Cross-site duplicate groups, see lib/dedupe.ts.
+    db.exec("ALTER TABLE listings ADD COLUMN group_id TEXT");
+    db.exec("ALTER TABLE listings ADD COLUMN grouped INTEGER NOT NULL DEFAULT 0");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_listings_group ON listings(group_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_listings_match ON listings(layout, area)");
 }
 
 export function searchText(...parts: (string | null | undefined)[]): string {

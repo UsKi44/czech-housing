@@ -44,7 +44,8 @@ function toDb(v: unknown): string | number | null {
   if (v === undefined || v === null) return null;
   if (typeof v === "boolean") return v ? 1 : 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  return String(v);
+  const str = String(v).trim();
+  return str === "" ? null : str; // sources sometimes send "" for unknown values
 }
 
 export type UpsertResult = { status: "new" | "updated" | "unchanged"; id: string; priceChanged: boolean; needsDetail: boolean };

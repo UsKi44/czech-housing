@@ -4,7 +4,7 @@ import type { ListingRow } from "./types";
 
 export const PAGE_SIZE = 24;
 
-export type ListingCardRow = ListingRow & { cover: string | null; cover_local: number; photo_count: number; prev_price: number | null };
+export type ListingCardRow = ListingRow & { cover: string | null; photo_count: number; prev_price: number | null; also_on: string | null };
 
 /** URL to show a photo: the local copy when downloaded, otherwise the source site's image. */
 export function photoSrc(p: { local_path: string | null; url: string }): string {
@@ -22,7 +22,8 @@ export function searchListings(f: Filters): { rows: ListingCardRow[]; total: num
               l.lift, l.parking, l.garage, l.pets, l.available_from, l.first_seen, l.last_seen, l.removed_at,
               (SELECT COALESCE('/photos/' || p.local_path, p.thumb_url, p.url) FROM photos p WHERE p.listing_id = l.id ORDER BY p.idx LIMIT 1) AS cover,
               (SELECT COUNT(*) FROM photos p WHERE p.listing_id = l.id) AS photo_count,
-              (SELECT h.price FROM price_history h WHERE h.listing_id = l.id ORDER BY h.seen_at DESC LIMIT 1 OFFSET 1) AS prev_price
+              (SELECT h.price FROM price_history h WHERE h.listing_id = l.id ORDER BY h.seen_at DESC LIMIT 1 OFFSET 1) AS prev_price,
+              (SELECT group_concat(DISTINCT o.source) FROM listings o WHERE o.group_id = l.group_id AND o.id != l.id AND o.removed_at IS NULL) AS also_on
        FROM listings l WHERE ${where} ORDER BY ${orderBy(f.sort, f.withCharges)} LIMIT ? OFFSET ?`,
     )
     .all(...params, PAGE_SIZE, (f.page - 1) * PAGE_SIZE) as unknown as ListingCardRow[];
@@ -37,9 +38,12 @@ export function districtOptions(): { districts: { name: string; n: number }[]; n
     .all() as { name: string; n: number }[];
   districts.sort((a, b) => (parseInt(a.name.replace(/\D/g, "")) || 99) - (parseInt(b.name.replace(/\D/g, "")) || 99));
   const neighbourhoods = db
-    .prepare("SELECT neighbourhood AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND neighbourhood IS NOT NULL GROUP BY neighbourhood ORDER BY neighbourhood")
+    .prepare("SELECT neighbourhood AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND neighbourhood IS NOT NULL AND trim(neighbourhood) != '' GROUP BY neighbourhood")
     .all() as { name: string; n: number }[];
-  return { districts, neighbourhoods };
+  neighbourhoods.sort((a, b) => a.name.localeCompare(b.name, "cs"));
+  // SQLite rows have a null prototype; React only passes plain objects to client components.
+  const plain = (rows: { name: string; n: number }[]) => rows.map((r) => ({ name: r.name, n: r.n }));
+  return { districts: plain(districts), neighbourhoods: plain(neighbourhoods) };
 }
 
 export interface SyncStatus {

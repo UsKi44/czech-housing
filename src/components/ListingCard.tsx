@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { ListingCardRow } from "@/lib/queries";
 import { czk, listingTitle, sourceLabel, timeAgo } from "@/lib/format";
 
-export function ListingCard({ l }: { l: ListingCardRow }) {
+/** `back` is the query string of the current search, so "Back to listings" returns to the same filters and page. */
+export function ListingCard({ l, back }: { l: ListingCardRow; back: string }) {
   const priceDrop = l.prev_price && l.price && l.price < l.prev_price ? l.prev_price - l.price : 0;
   const tags = [
     l.furnished === "yes" ? "Furnished" : l.furnished === "partly" ? "Partly furnished" : l.furnished === "no" ? "Unfurnished" : null,
@@ -14,7 +15,7 @@ export function ListingCard({ l }: { l: ListingCardRow }) {
 
   return (
     <Link
-      href={`/listing/${encodeURIComponent(l.id)}`}
+      href={`/listing/${encodeURIComponent(l.id)}${back ? `?back=${encodeURIComponent(back)}` : ""}`}
       className={`group overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition hover:shadow-md dark:border-stone-800 dark:bg-stone-900 ${l.removed_at ? "opacity-60" : ""}`}
     >
       <div className="relative aspect-[4/3] bg-stone-200 dark:bg-stone-800">
@@ -53,7 +54,10 @@ export function ListingCard({ l }: { l: ListingCardRow }) {
             ))}
           </div>
         )}
-        <div className="pt-1 text-xs text-stone-400">Seen {timeAgo(l.first_seen)}</div>
+        <div className="flex flex-wrap items-center justify-between gap-1 pt-1 text-xs text-stone-400">
+          <span>Seen {timeAgo(l.first_seen)}</span>
+          {l.also_on && <span title="The same flat is also listed on these sites">Also on {[...new Set(l.also_on.split(","))].map(sourceLabel).join(", ")}</span>}
+        </div>
       </div>
     </Link>
   );

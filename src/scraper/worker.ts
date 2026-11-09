@@ -2,6 +2,8 @@
  * Background worker: keeps the local database in sync with the source sites.
  *
  * Every cycle (default 10 min):
+* Sources: Sreality, Bezrealitky, iDNES Reality, UlovDomov.
+ *
  *   1. quick scan — newest pages of each source until we reach listings we already know
  *      (every 2 h this is a full sweep through all pages instead, to notice price changes and removals)
  *   2. fetch missing details (Sreality only; Bezrealitky search results are already complete)
@@ -19,6 +21,9 @@ import { BlockedError } from "./http";
 import { log } from "./log";
 import { cleanupOldPhotos, downloadPhotos } from "./photos";
 import { sreality } from "./sreality";
+import { idnes } from "./idnes";
+import { ulovdomov } from "./ulovdomov";
+import { assignGroups } from "../lib/dedupe";
 import type { SourceScraper } from "./types";
 
 try {
@@ -27,7 +32,7 @@ try {
   /* no .env.local: fine, everything has defaults */
 }
 
-const SCRAPERS: SourceScraper[] = [sreality, bezrealitky];
+const SCRAPERS: SourceScraper[] = [sreality, bezrealitky, idnes, ulovdomov];
 const INTERVAL_MS = Math.max(5, Number(process.env.SCRAPE_INTERVAL_MIN) || 10) * 60_000;
 const FULL_SWEEP_EVERY_MS = 2 * 3600_000;
 const QUICK_MAX_PAGES = 5;
@@ -57,10 +62,13 @@ async function scanSource(s: SourceScraper): Promise<void> {
 
   try {
     let total = 0;
+    let raw = 0; // results received, including out-of-scope ones the scraper dropped
     for (let page = 0; page < 200; page++) {
       const res = await s.fetchPage(page);
       total = res.total;
-      if (res.items.length === 0) break;
+      const rawCount = res.rawCount ?? res.items.length;
+      raw += rawCount;
+      if (rawCount === 0) break;
       const known = knownIds(s.source, res.items.map((i) => i.sourceId));
       for (const item of res.items) {
         const r = upsertListing(item);
@@ -76,7 +84,7 @@ async function scanSource(s: SourceScraper): Promise<void> {
       // A listing counts as removed only after it is missing from two full sweeps in a row,
       // because results shift while we page through them.
       const prevStart = getKv(`last_full_start:${s.source}`);
-      if (prevStart && stats.seen >= total * 0.9) stats.removed = markMissingAsRemoved(s.source, prevStart);
+      if (prevStart && raw >= total * 0.9) stats.removed = markMissingAsRemoved(s.source, prevStart);
       setKv(`last_full_start:${s.source}`, startedAt);
       if (firstSync) {
         // Don't send alerts for everything that existed before you started using the site.
@@ -96,19 +104,24 @@ async function scanSource(s: SourceScraper): Promise<void> {
   }
 }
 
+/** Fetch missing details for every source in parallel: each site is a different server with its own polite pace. */
 async function fetchDetails(budgetMs: number): Promise<void> {
   const deadline = Date.now() + budgetMs;
+  await Promise.all(SCRAPERS.map((s) => fetchDetailsFor(s, deadline)));
+}
+
+async function fetchDetailsFor(s: SourceScraper, deadline: number): Promise<void> {
   const db = getDb();
-  for (const s of SCRAPERS) {
-    if (!s.fetchDetail) continue;
-    if (Date.now() < Number(getKv(`paused_until:${s.source}`) ?? 0)) continue;
+  {
+    if (!s.fetchDetail) return;
+    if (Date.now() < Number(getKv(`paused_until:${s.source}`) ?? 0)) return;
     const todo = db
       .prepare(
         `SELECT source_id FROM listings WHERE source = ? AND removed_at IS NULL AND detail_fetched_at IS NULL AND detail_failures < 3
          ORDER BY first_seen DESC LIMIT 1000`,
       )
       .all(s.source) as { source_id: string }[];
-    if (todo.length === 0) continue;
+    if (todo.length === 0) return;
     let done = 0;
     for (const { source_id } of todo) {
       if (Date.now() > deadline) break;
@@ -135,6 +148,8 @@ async function fetchDetails(budgetMs: number): Promise<void> {
 
 async function alerts(): Promise<void> {
   try {
+    const merged = assignGroups();
+    if (merged) log(`duplicates: ${merged} listing(s) matched the same flat on another site`);
     await processAlerts();
   } catch (e) {
     log(`alerts failed: ${e instanceof Error ? e.message : e}`);

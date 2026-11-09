@@ -1,4 +1,4 @@
-import type { ListingRow } from "./types";
+import { SOURCES, type ListingRow } from "./types";
 
 export function czk(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
@@ -20,7 +20,7 @@ export function listingTitle(l: Pick<ListingRow, "layout" | "area" | "neighbourh
 }
 
 export function sourceLabel(source: string): string {
-  return source === "sreality" ? "Sreality" : source === "bezrealitky" ? "Bezrealitky" : source;
+  return SOURCES.find((s) => s.id === source)?.label ?? source;
 }
 
 export function timeAgo(iso: string | null | undefined, now = Date.now()): string {

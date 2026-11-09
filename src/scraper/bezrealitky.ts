@@ -1,5 +1,6 @@
 import type { ListingInput, Param } from "../lib/types";
 import { fetchJson } from "./http";
+import { layoutFromText } from "./layout";
 import type { PageResult, SourceScraper } from "./types";
 
 /**
@@ -94,12 +95,6 @@ function layout(d: string | null, roommate: boolean | null): string | null {
   return null;
 }
 
-/** Many owners leave the layout field empty but mention it in the text, e.g. "byt 2+kk". */
-function layoutFromText(text: string | null): string | null {
-  const m = text?.match(/(?<![\d+])([1-6])\s*\+\s*(kk|1)(?![a-z\d])/i);
-  if (!m) return null;
-  return Number(m[1]) >= 6 ? "6+" : `${m[1]}+${m[2].toLowerCase()}`;
-}
 
 function enumText(v: string | null): string | null {
   if (!v || v === "UNDEFINED" || v === "UNKNOWN") return null;

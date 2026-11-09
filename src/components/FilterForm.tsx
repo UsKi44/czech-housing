@@ -1,6 +1,7 @@
 import { FEATURES, SORTS, type Filters } from "@/lib/filters";
 import { LAYOUTS, SOURCES } from "@/lib/types";
 import { layoutLabel } from "@/lib/format";
+import { NeighbourhoodPicker } from "./NeighbourhoodPicker";
 
 /** Plain GET form: filters live in the URL, so every search can be bookmarked or saved as an alert. */
 export function FilterForm({
@@ -13,7 +14,7 @@ export function FilterForm({
   neighbourhoods: { name: string; n: number }[];
 }) {
   const districtNames = new Set(districts.map((d) => d.name));
-  const selectedNeighbourhood = f.districts.find((d) => !districtNames.has(d)) ?? "";
+  const selectedNeighbourhoods = f.districts.filter((d) => !districtNames.has(d));
   return (
     <form method="get" action="/" className="space-y-5 text-sm">
       <Section title="Search">
@@ -54,14 +55,8 @@ export function FilterForm({
             <Chip key={d.name} name="district" value={d.name} checked={f.districts.includes(d.name)} label={`${d.name}`} hint={d.n} />
           ))}
         </div>
-        <select name="district" defaultValue={selectedNeighbourhood} className="mt-2 w-full">
-          <option value="">Any neighbourhood</option>
-          {neighbourhoods.map((n) => (
-            <option key={n.name} value={n.name}>
-              {n.name} ({n.n})
-            </option>
-          ))}
-        </select>
+        <NeighbourhoodPicker options={neighbourhoods} selected={selectedNeighbourhoods} />
+        <p className="mt-1 text-xs text-stone-500">Pick any number of districts and neighbourhoods: listings in any of them are shown.</p>
       </Section>
 
       <Section title="Furnished">
@@ -87,7 +82,7 @@ export function FilterForm({
       </Section>
 
       <Section title="Source">
-        <div className="flex gap-1">
+        <div className="grid grid-cols-2 gap-1">
           {SOURCES.map((s) => (
             <Chip key={s.id} name="source" value={s.id} checked={f.sources.includes(s.id)} label={s.label} />
           ))}

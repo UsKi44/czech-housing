@@ -9,6 +9,8 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const HOST_DELAY_MS: Record<string, number> = {
   "www.sreality.cz": 1500,
   "api.bezrealitky.cz": 1500,
+  "reality.idnes.cz": 2000,
+  "ud.api.ulovdomov.cz": 1500,
 };
 const DEFAULT_DELAY_MS = 400; // image CDNs
 

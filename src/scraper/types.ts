@@ -4,6 +4,8 @@ export interface PageResult {
   items: ListingInput[];
   /** Total number of listings the source reports for the whole search. */
   total: number;
+  /** Results on this page before dropping out-of-scope ones (e.g. outside Prague); defaults to items.length. */
+  rawCount?: number;
 }
 
 export interface SourceScraper {

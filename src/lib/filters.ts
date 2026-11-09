@@ -114,6 +114,11 @@ export function describeFilters(f: Filters): string {
 
 const TOTAL = "(l.price + COALESCE(l.charges, 0))";
 
+/** SQL expression ranking sources (lower = preferred as the main card when a flat is on several sites). */
+export function sourceRankSql(alias: string): string {
+  return `(CASE ${alias}.source ${SOURCES.map((s, i) => `WHEN '${s.id}' THEN ${i}`).join(" ")} ELSE 99 END)`;
+}
+
 export function buildWhere(f: Filters): { where: string; params: (string | number)[] } {
   const w: string[] = ["1 = 1"];
   const p: (string | number)[] = [];
@@ -122,6 +127,17 @@ export function buildWhere(f: Filters): { where: string; params: (string | numbe
   if (!f.showRemoved) w.push("l.removed_at IS NULL");
   if (f.sources.length) {
     w.push(`l.source IN (${f.sources.map(() => "?").join(",")})`);
+    p.push(...f.sources);
+  }
+  // Show each flat once: hide a listing when a preferred copy of the same flat exists on another site
+  // (active beats removed; then source order; then id).
+  {
+    const rl = sourceRankSql("l");
+    const ro = sourceRankSql("o");
+    const srcFilter = f.sources.length ? ` AND o.source IN (${f.sources.map(() => "?").join(",")})` : "";
+    w.push(`NOT EXISTS (SELECT 1 FROM listings o WHERE o.group_id = l.group_id AND o.id != l.id${srcFilter}
+      AND ((o.removed_at IS NULL AND l.removed_at IS NOT NULL)
+        OR ((o.removed_at IS NULL) = (l.removed_at IS NULL) AND (${ro} < ${rl} OR (${ro} = ${rl} AND o.id < l.id)))))`);
     p.push(...f.sources);
   }
   if (f.layouts.length) {

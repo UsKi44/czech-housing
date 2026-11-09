@@ -13,6 +13,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const { districts, neighbourhoods } = districtOptions();
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const query = toQuery(f);
+  const back = toQuery(f, {}, { withPage: true });
 
   return (
     <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -50,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {rows.map((l) => (
-              <ListingCard key={l.id} l={l} />
+              <ListingCard key={l.id} l={l} back={back} />
             ))}
           </div>
         )}

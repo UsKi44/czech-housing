@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { Gallery } from "@/components/Gallery";
 import { czk, layoutLabel, listingTitle, pragueDate, pragueDateTime, sourceLabel, timeAgo } from "@/lib/format";
 import { photoSrc } from "@/lib/queries";
+import { siblings } from "@/lib/dedupe";
+import { parseFilters, toQuery } from "@/lib/filters";
 import { getListing, getPhotos, getPriceHistory } from "@/lib/repo";
 import type { Param } from "@/lib/types";
 
@@ -12,12 +14,23 @@ function yesNo(v: number | null): string | null {
   return v === null ? null : v ? "Yes" : "No";
 }
 
-export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ListingPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string }>;
+}) {
   const id = decodeURIComponent((await params).id);
+  // Rebuild the search the user came from (re-serialised, so only valid filters end up in the link).
+  const backRaw = (await searchParams).back;
+  const backQuery = backRaw ? toQuery(parseFilters(new URLSearchParams(backRaw)), {}, { withPage: true }) : "";
+  const backHref = backQuery ? `/?${backQuery}` : "/";
   const l = getListing(id);
   if (!l) notFound();
   const photos = getPhotos(id).map((p) => ({ src: photoSrc(p), thumb: p.local_path ? photoSrc(p) : (p.thumb_url ?? p.url) }));
   const history = getPriceHistory(id);
+  const copies = siblings(id);
   const params_: Param[] = l.params_json ? JSON.parse(l.params_json) : [];
 
   const facts: [string, string | null][] = [
@@ -51,7 +64,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-6">
-      <Link href="/" className="text-sm text-stone-500 hover:underline">
+      <Link href={backHref} className="text-sm text-stone-500 hover:underline">
         ← Back to listings
       </Link>
 
@@ -145,7 +158,29 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                   ✉️ {l.contact_email}
                 </a>
               )}
-              {l.source === "bezrealitky" && <p className="mt-2 text-xs text-stone-500">Bezrealitky hides owner contacts — message them through the original listing.</p>}
+              {(l.source === "bezrealitky" || l.source === "ulovdomov") && (
+                <p className="mt-2 text-xs text-stone-500">{sourceLabel(l.source)} hides owner contacts — message them through the original listing.</p>
+              )}
+            </div>
+          )}
+
+          {copies.length > 0 && (
+            <div className="rounded-xl border border-stone-200 bg-white p-5 text-sm dark:border-stone-800 dark:bg-stone-900">
+              <h2 className="mb-2 font-semibold">Also listed on</h2>
+              <ul className="space-y-1.5">
+                {copies.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-2">
+                    <Link href={`/listing/${encodeURIComponent(c.id)}${backQuery ? `?back=${encodeURIComponent(backQuery)}` : ""}`} className="hover:underline">
+                      {sourceLabel(c.source)} · {czk(c.price)}
+                      {c.removed_at && <span className="ml-1 text-red-600">(removed)</span>}
+                    </Link>
+                    <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-stone-500 hover:underline">
+                      original ↗
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-stone-500">Same layout, size, price and location — most likely the same flat posted on several sites.</p>
             </div>
           )}
 
