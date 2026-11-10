@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { sourceRankSql } from "./filters";
+import { preferredOver, sourceRankSql } from "./filters";
 
 /**
  * Cross-site duplicate detection. Agencies post the same flat on several portals; we put such listings
@@ -96,6 +96,19 @@ export function assignGroups(): number {
     throw e;
   }
   return merged;
+}
+
+/**
+ * Recompute listings.dup_hidden: 1 when another site's copy of the same flat is shown instead.
+ * Run after anything that changes groups or removals (the listing page then only reads the flag).
+ */
+export function refreshDuplicateVisibility(): void {
+  getDb().exec(
+    `UPDATE listings AS l SET dup_hidden = CASE WHEN EXISTS (
+       SELECT 1 FROM listings o WHERE o.group_id = l.group_id AND o.id != l.id AND ${preferredOver("o", "l")}
+     ) THEN 1 ELSE 0 END
+     WHERE l.group_id IS NOT NULL OR l.dup_hidden != 0`,
+  );
 }
 
 /** Other active copies of a listing on other sites. */

@@ -114,6 +114,14 @@ export function describeFilters(f: Filters): string {
 
 const TOTAL = "(l.price + COALESCE(l.charges, 0))";
 
+/** SQL condition: listing `o` is shown in preference to listing `l` (same flat on two sites). */
+export function preferredOver(o: string, l: string): string {
+  const ro = sourceRankSql(o);
+  const rl = sourceRankSql(l);
+  return `((${o}.removed_at IS NULL AND ${l}.removed_at IS NOT NULL)
+    OR ((${o}.removed_at IS NULL) = (${l}.removed_at IS NULL) AND (${ro} < ${rl} OR (${ro} = ${rl} AND ${o}.id < ${l}.id))))`;
+}
+
 /** SQL expression ranking sources (lower = preferred as the main card when a flat is on several sites). */
 export function sourceRankSql(alias: string): string {
   return `(CASE ${alias}.source ${SOURCES.map((s, i) => `WHEN '${s.id}' THEN ${i}`).join(" ")} ELSE 99 END)`;
@@ -130,14 +138,14 @@ export function buildWhere(f: Filters): { where: string; params: (string | numbe
     p.push(...f.sources);
   }
   // Show each flat once: hide a listing when a preferred copy of the same flat exists on another site
-  // (active beats removed; then source order; then id).
-  {
-    const rl = sourceRankSql("l");
-    const ro = sourceRankSql("o");
-    const srcFilter = f.sources.length ? ` AND o.source IN (${f.sources.map(() => "?").join(",")})` : "";
-    w.push(`NOT EXISTS (SELECT 1 FROM listings o WHERE o.group_id = l.group_id AND o.id != l.id${srcFilter}
-      AND ((o.removed_at IS NULL AND l.removed_at IS NOT NULL)
-        OR ((o.removed_at IS NULL) = (l.removed_at IS NULL) AND (${ro} < ${rl} OR (${ro} = ${rl} AND o.id < l.id)))))`);
+  // (active beats removed; then source order; then id). Without a source filter this is precomputed
+  // (dup_hidden, see refreshDuplicateVisibility); with one, it is computed among the chosen sources only.
+  if (!f.sources.length) w.push("l.dup_hidden = 0");
+  else {
+    // One ranking pass over the chosen sources: keep the preferred copy of each flat.
+    w.push(`l.id IN (SELECT id FROM (
+      SELECT x.id, ROW_NUMBER() OVER (PARTITION BY COALESCE(x.group_id, x.id) ORDER BY x.removed_at IS NOT NULL, ${sourceRankSql("x")}, x.id) AS rn
+      FROM listings x WHERE x.source IN (${f.sources.map(() => "?").join(",")})) WHERE rn = 1)`);
     p.push(...f.sources);
   }
   if (f.layouts.length) {

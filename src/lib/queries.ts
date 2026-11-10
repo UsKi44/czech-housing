@@ -34,11 +34,11 @@ export function searchListings(f: Filters): { rows: ListingCardRow[]; total: num
 export function districtOptions(): { districts: { name: string; n: number }[]; neighbourhoods: { name: string; n: number }[] } {
   const db = getDb();
   const districts = db
-    .prepare("SELECT district AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND district IS NOT NULL GROUP BY district")
+    .prepare("SELECT district AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND dup_hidden = 0 AND district GLOB 'Praha [0-9]*' GROUP BY district")
     .all() as { name: string; n: number }[];
   districts.sort((a, b) => (parseInt(a.name.replace(/\D/g, "")) || 99) - (parseInt(b.name.replace(/\D/g, "")) || 99));
   const neighbourhoods = db
-    .prepare("SELECT neighbourhood AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND neighbourhood IS NOT NULL AND trim(neighbourhood) != '' GROUP BY neighbourhood")
+    .prepare("SELECT neighbourhood AS name, COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND dup_hidden = 0 AND neighbourhood IS NOT NULL AND trim(neighbourhood) != '' GROUP BY neighbourhood")
     .all() as { name: string; n: number }[];
   neighbourhoods.sort((a, b) => a.name.localeCompare(b.name, "cs"));
   // SQLite rows have a null prototype; React only passes plain objects to client components.
@@ -47,36 +47,29 @@ export function districtOptions(): { districts: { name: string; n: number }[]; n
 }
 
 export interface SyncStatus {
-  lastCycleAt: string | null;
-  active: { source: string; n: number }[];
+  /** When the listings were last checked against the source sites. */
+  lastScanAt: string | null;
+  /** Set while the background worker is checking the sites right now. */
+  updating: boolean;
+  /** Visible flats (duplicates across sites counted once). */
+  total: number;
   newToday: number;
-  photosStored: number;
-  photoBytes: number;
-  photosTotal: number;
   lastErrors: { source: string; error: string; at: string }[];
 }
 
 export function syncStatus(): SyncStatus {
   const db = getDb();
-  const active = db.prepare("SELECT source, COUNT(*) AS n FROM listings WHERE removed_at IS NULL GROUP BY source").all() as { source: string; n: number }[];
+  const total = (db.prepare("SELECT COUNT(*) AS n FROM listings WHERE removed_at IS NULL AND dup_hidden = 0").get() as { n: number }).n;
   const since = new Date(Date.now() - 86400_000).toISOString();
-  const newToday = (db.prepare("SELECT COUNT(*) AS n FROM listings WHERE first_seen >= ?").get(since) as { n: number }).n;
-  const ph = db
-    .prepare("SELECT COUNT(local_path) AS stored, COALESCE(SUM(bytes), 0) AS bytes, COUNT(*) AS total FROM photos")
-    .get() as { stored: number; bytes: number; total: number };
+  const newToday = (db.prepare("SELECT COUNT(*) AS n FROM listings WHERE first_seen >= ? AND dup_hidden = 0").get(since) as { n: number }).n;
   const lastErrors = db
     .prepare(
       `SELECT r.source, r.error, r.finished_at AS at FROM runs r
        WHERE r.id = (SELECT MAX(id) FROM runs r2 WHERE r2.source = r.source) AND r.error IS NOT NULL`,
     )
     .all() as { source: string; error: string; at: string }[];
-  return {
-    lastCycleAt: getKv("last_cycle_at") ?? null,
-    active,
-    newToday,
-    photosStored: ph.stored,
-    photoBytes: ph.bytes,
-    photosTotal: ph.total,
-    lastErrors,
-  };
+  const updatingSince = getKv("updating_since");
+  // A stale flag (worker killed mid-scan) is ignored after 30 minutes.
+  const updating = !!updatingSince && Date.now() - Date.parse(updatingSince) < 30 * 60_000;
+  return { lastScanAt: getKv("last_scan_at") ?? getKv("last_cycle_at") ?? null, updating, total, newToday, lastErrors };
 }

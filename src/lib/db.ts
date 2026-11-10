@@ -141,6 +141,10 @@ function migrate(db: DatabaseSync): void {
     }
   }
   db.exec("DELETE FROM photos WHERE url LIKE '%placeholder%'");
+  // Sreality only serves its own size presets; "webp,70" (used before) answers 400 → broken galleries.
+  db.exec("UPDATE photos SET url = replace(url, '|webp,70', '|webp,60'), failures = 0 WHERE url LIKE '%|webp,70'");
+  // iDNES galleries can contain videos, which are not photos.
+  db.exec("DELETE FROM photos WHERE url LIKE '%.mp4' OR url LIKE '%/thumbs/video/%'");
 
   const cols = new Set((db.prepare("PRAGMA table_info(listings)").all() as { name: string }[]).map((c) => c.name));
   if (!cols.has("search_text")) {
@@ -157,7 +161,12 @@ function migrate(db: DatabaseSync): void {
     db.exec("ALTER TABLE listings ADD COLUMN group_id TEXT");
     db.exec("ALTER TABLE listings ADD COLUMN grouped INTEGER NOT NULL DEFAULT 0");
   }
+  if (!cols.has("dup_hidden")) {
+    // 1 = another site's copy of the same flat is shown instead (precomputed by refreshDuplicateVisibility()).
+    db.exec("ALTER TABLE listings ADD COLUMN dup_hidden INTEGER NOT NULL DEFAULT 0");
+  }
   db.exec("CREATE INDEX IF NOT EXISTS idx_listings_group ON listings(group_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_listings_visible ON listings(removed_at, dup_hidden, first_seen)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_listings_match ON listings(layout, area)");
 }
 

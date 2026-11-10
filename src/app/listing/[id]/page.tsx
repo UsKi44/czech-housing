@@ -83,8 +83,9 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-          <div className="space-y-6">
+        {/* minmax(0,1fr) + min-w-0: the long photo-thumbnail strip must scroll, not widen the page. */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 space-y-6">
             <Gallery photos={photos} />
 
             <section>

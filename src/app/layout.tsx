@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Prague Rentals",
-  description: "Private overview of Prague apartment rentals from Sreality and Bezrealitky",
+  description: "Private overview of Prague apartment rentals from Sreality, Bezrealitky, iDNES Reality and UlovDomov",
   robots: { index: false, follow: false },
 };
 
@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const s = syncStatus();
-  const total = s.active.reduce((a, b) => a + b.n, 0);
   return (
     <html lang="en">
       <body className="min-h-screen">
@@ -32,7 +31,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
             </nav>
             <div className="ml-auto text-xs text-stone-500 dark:text-stone-400">
-              {total.toLocaleString("en")} active · {s.newToday} new in 24 h · updated {timeAgo(s.lastCycleAt)}
+              {s.total.toLocaleString("en")} flats · {s.newToday} new in 24 h ·{" "}
+              {s.updating ? (
+                <span className="text-emerald-600">updating now…</span>
+              ) : (
+                <span className={s.lastScanAt && Date.now() - Date.parse(s.lastScanAt) > 3 * 3600_000 ? "text-amber-600" : ""}>
+                  updated {timeAgo(s.lastScanAt)}
+                </span>
+              )}
               {s.lastErrors.length > 0 && <span className="ml-2 text-amber-600">⚠ {s.lastErrors.map((e) => e.source).join(", ")} had a problem</span>}
             </div>
           </div>

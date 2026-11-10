@@ -11,7 +11,8 @@ const API = "https://www.sreality.cz/api/v1";
 const PAGE_SIZE = 100;
 
 // Image sizes the sreality website itself requests.
-const FULL = "?fl=res,1200,1200,1|shr,,20|webp,70";
+// Only the size presets sreality.cz itself uses are served (others answer 400): SQUARE_1200_WEBP and IMG_4TO3_400X300_WEBP.
+const FULL = "?fl=res,1200,1200,1|shr,,20|webp,60";
 const THUMB = "?fl=res,400,300,3|shr,,20|webp,60";
 
 type Cb = { name: string; value: number } | null | undefined;

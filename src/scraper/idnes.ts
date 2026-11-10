@@ -151,7 +151,8 @@ export function parseDetail(id: string, html: string): ListingInput {
       const img = a.querySelector("img");
       const url = a.getAttribute("href");
       const thumb = img?.getAttribute("data-lazy") ?? img?.getAttribute("src");
-      return url ? { url, thumbUrl: thumb && !thumb.includes("no-image") ? thumb : url } : null;
+      if (!url || /\.(mp4|webm|mov)(\?|$)|\/video\//i.test(url)) return null; // gallery videos are not photos
+      return { url, thumbUrl: thumb && !thumb.includes("no-image") ? thumb : url };
     })
     .filter((p): p is { url: string; thumbUrl: string } => p !== null);
 

@@ -23,7 +23,7 @@ import { cleanupOldPhotos, downloadPhotos } from "./photos";
 import { sreality } from "./sreality";
 import { idnes } from "./idnes";
 import { ulovdomov } from "./ulovdomov";
-import { assignGroups } from "../lib/dedupe";
+import { assignGroups, refreshDuplicateVisibility } from "../lib/dedupe";
 import type { SourceScraper } from "./types";
 
 try {
@@ -150,6 +150,7 @@ async function alerts(): Promise<void> {
   try {
     const merged = assignGroups();
     if (merged) log(`duplicates: ${merged} listing(s) matched the same flat on another site`);
+    refreshDuplicateVisibility();
     await processAlerts();
   } catch (e) {
     log(`alerts failed: ${e instanceof Error ? e.message : e}`);
@@ -158,7 +159,12 @@ async function alerts(): Promise<void> {
 
 async function cycle(): Promise<void> {
   const started = Date.now();
+  // Shown in the site header as "updating now…" while the listing scans run.
+  setKv("updating_since", nowIso());
   for (const s of SCRAPERS) await scanSource(s);
+  refreshDuplicateVisibility(); // removals can change which copy of a flat is shown
+  setKv("last_scan_at", nowIso());
+  setKv("updating_since", "");
   // New listings are fetched first (newest first), so alerts go out quickly…
   await fetchDetails(60_000);
   await alerts();
@@ -179,6 +185,7 @@ async function cycle(): Promise<void> {
 
 async function main() {
   getDb();
+  refreshDuplicateVisibility();
   log(`worker started · checking every ${INTERVAL_MS / 60_000} min`);
   let stopping = false;
   process.on("SIGINT", () => {

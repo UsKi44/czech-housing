@@ -16,7 +16,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const back = toQuery(f, {}, { withPage: true });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2">
         <details className="lg:hidden" open={false}>
           <summary className="cursor-pointer rounded-md border border-stone-300 px-3 py-2 text-sm font-medium dark:border-stone-700">Filters</summary>
@@ -29,7 +29,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </aside>
 
-      <section>
+      <section className="min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold">{total.toLocaleString("en")} apartments for rent</h1>
